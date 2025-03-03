@@ -56,7 +56,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ## easylogger
     Utils/easylogger/src/elog.c
     Utils/easylogger/src/elog_utils.c
+    Utils/easylogger/src/elog_async.c
     Utils/easylogger/port/elog_port.c
+    Utils/easylogger/port/elog_async_port.c
 )
 
 # Add include paths

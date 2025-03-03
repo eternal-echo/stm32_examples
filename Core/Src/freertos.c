@@ -87,15 +87,15 @@ void vApplicationDaemonTaskStartupHook(void);
 __weak void configureTimerForRunTimeStats(void)
 {
 #ifdef APP_THREAD_INFO
-    // 启用DWT外设
+    // 坯用DWT外设
     if (!(CoreDebug->DEMCR & CoreDebug_DEMCR_TRCENA_Msk)) {
         CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
     }
 
-    // 启用DWT计数�?
+    // 坯用DWT计数�?
     DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 
-    // 重置计数�?
+    // 針置计数�?
     DWT->CYCCNT = 0;
 #endif
 }
@@ -103,7 +103,7 @@ __weak void configureTimerForRunTimeStats(void)
 __weak unsigned long getRunTimeCounterValue(void)
 {
 #ifdef APP_THREAD_INFO
-    // 返回DWT计数器的当前�?
+    // 返回DWT计数器的当剝�?
     return DWT->CYCCNT;
 #else
     return 0;
@@ -182,7 +182,15 @@ void vApplicationDaemonTaskStartupHook(void)
   */
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
-  elog_init();
+  ElogErrCode result;
+  /* ???EasyLogger */
+  result = elog_init();
+  assert_param(result == ELOG_NO_ERR);
+
+  /* ???????????? */
+  result = elog_async_port_init();
+  assert_param(result == ELOG_NO_ERR);
+
 
   elog_set_fmt(ELOG_LVL_ASSERT, ELOG_FMT_ALL & ~ELOG_FMT_P_INFO);
   elog_set_fmt(ELOG_LVL_ERROR, ELOG_FMT_LVL | ELOG_FMT_TAG | ELOG_FMT_TIME);
