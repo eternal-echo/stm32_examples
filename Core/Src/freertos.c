@@ -92,10 +92,10 @@ __weak void configureTimerForRunTimeStats(void)
         CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
     }
 
-    // 坯用DWT计数�?
+    // 坯用DWT计数�?
     DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 
-    // 針置计数�?
+    // 針置计数�?
     DWT->CYCCNT = 0;
 #endif
 }
@@ -103,7 +103,7 @@ __weak void configureTimerForRunTimeStats(void)
 __weak unsigned long getRunTimeCounterValue(void)
 {
 #ifdef APP_THREAD_INFO
-    // 返回DWT计数器的当剝�?
+    // 返回DWT计数器的当剝�?
     return DWT->CYCCNT;
 #else
     return 0;
