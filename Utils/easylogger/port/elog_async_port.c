@@ -14,7 +14,11 @@ extern void elog_port_output(const char *log, size_t size);
 /* 异步输出任务 */
 static void elog_async_task(void *arg) {
     size_t get_log_size = 0;
+#ifdef ELOG_ASYNC_LINE_OUTPUT
+    static char poll_get_buf[ELOG_LINE_BUF_SIZE - 4];
+#else
     static char poll_get_buf[ELOG_ASYNC_OUTPUT_BUF_SIZE - 4];
+#endif
 
     (void)arg; /* 避免未使用参数警告 */
 
@@ -55,7 +59,7 @@ ElogErrCode elog_async_port_init(void) {
     osThreadAttr_t thread_attr = {
         .name = "elog_async",
         .stack_size = ELOG_ASYNC_TASK_STACK_SIZE,
-        .priority = osPriorityNormal,
+        .priority = osPriorityBelowNormal,
     };
     elog_async_thread = osThreadNew(elog_async_task, NULL, &thread_attr);
     if (elog_async_thread == NULL) {

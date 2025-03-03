@@ -1,5 +1,5 @@
 {
-    "cortex-debug.armToolchainPath": "C:\\ST\\STM32CUBECLT_1.16.0\\GNU-TOOLS-FOR-STM32\\BIN",
+    "cortex-debug.armToolchainPath": "C:/Users/yuany/scoop/apps/gcc-arm-none-eabi/current/bin",
     "files.associations": {
         "*.ino": "cpp",
         "*.map": "mapfile",
