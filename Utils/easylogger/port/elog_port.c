@@ -47,9 +47,6 @@ const osMutexAttr_t elog_lock_attributes = {
 
 int serial_send(const uint8_t *data, uint16_t size) {
     HAL_StatusTypeDef status = HAL_OK;
-    while (HAL_UART_GetState(&log_huart) != HAL_UART_STATE_READY) {
-        osDelay(1);
-    }
     status = HAL_UART_Transmit(&log_huart, data, size, 1000);
     if (status != HAL_OK) {
         return -1;
