@@ -243,7 +243,7 @@ void MX_FREERTOS_Init(void) {
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
-  static char task_info[256];
+  // static char task_info[256];
   /* Infinite loop */
   (void) argument;
   // debug log, turn on log level: ELOG_LEVEL_DEBUG at main.c

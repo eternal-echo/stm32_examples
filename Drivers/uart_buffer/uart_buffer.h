@@ -6,7 +6,10 @@
 // 缓冲区大小定义
 #define UART_RX_BUFFER_SIZE  256
 
-// 初始化串口缓冲区
+// 等待接收数据的超时时间(ms)
+#define UART_RECEIVE_TIMEOUT 1000
+
+// 初始化串口缓冲区和信号量
 void uart_buffer_init(UART_HandleTypeDef *huart);
 
 // 启动串口接收(开启中断接收)
@@ -24,7 +27,8 @@ uint32_t uart_buffer_send(uint8_t *data, uint32_t length);
 // 发送时间戳和数据长度信息的响应包
 void uart_buffer_send_timestamp_response(uint32_t rx_timestamp, uint32_t process_timestamp, uint32_t data_length);
 
-// // UART接收中断回调函数 - 在HAL_UART_RxCpltCallback中调用
-// void uart_buffer_rx_callback(UART_HandleTypeDef *huart);
+// 等待接收数据
+// 返回值: 1-有数据接收到，0-超时
+uint8_t uart_buffer_wait_receive(uint32_t timeout);
 
 #endif // UART_BUFFER_H

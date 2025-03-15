@@ -1,5 +1,6 @@
 #include "uart_buffer.h"
 #include "dwt.h"
+#include "cmsis_os2.h"
 #include <string.h>
 
 // 定义一个日志TAG
@@ -14,6 +15,9 @@ static volatile uint32_t g_rx_index = 0;
 static uint8_t g_rx_temp; // 用于单字节接收的临时变量
 static uint32_t g_rx_timestamp = 0; // 记录接收时间戳
 
+// 定义二值信号量句柄
+static osSemaphoreId_t rx_sem = NULL;
+
 // 初始化串口缓冲区
 void uart_buffer_init(UART_HandleTypeDef *huart)
 {
@@ -21,10 +25,17 @@ void uart_buffer_init(UART_HandleTypeDef *huart)
     g_rx_index = 0;
     memset(g_rx_buffer, 0, UART_RX_BUFFER_SIZE);
     
+    // 创建二值信号量
+    rx_sem = osSemaphoreNew(1, 0, NULL);
+    if (rx_sem == NULL) {
+        log_e("Failed to create rx semaphore");
+        return;
+    }
+    
     // 初始化DWT计时器
     dwt_init();
     
-    log_i("UART buffer initialized with DWT timestamp support");
+    log_i("UART buffer initialized with semaphore");
 }
 
 // 启动串口接收
@@ -124,17 +135,23 @@ void uart_buffer_rx_callback(UART_HandleTypeDef *huart)
         g_rx_timestamp = dwt_get_timestamp();
     }
     
-    // 检查接收缓冲区是否已满
     if (g_rx_index < UART_RX_BUFFER_SIZE) {
-        // 存储接收到的字节
         g_rx_buffer[g_rx_index++] = g_rx_temp;
+        
+        // 释放信号量通知任务
+        osSemaphoreRelease(rx_sem);
     } else {
-        // 缓冲区已满，可以选择丢弃数据或进行其他处理
         log_w("UART RX buffer overflow");
     }
     
     // 继续接收下一个字节
     HAL_UART_Receive_IT(g_huart, &g_rx_temp, 1);
+}
+
+uint8_t uart_buffer_wait_receive(uint32_t timeout)
+{
+    // 等待信号量
+    return (osSemaphoreAcquire(rx_sem, timeout) == osOK) ? 1 : 0;
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)

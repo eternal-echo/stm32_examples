@@ -37,8 +37,8 @@ static void uart_process_task(void *argument)
     
     for(;;)
     {
-        // 检查是否有数据可读
-        if (uart_buffer_available() > 0) {
+        // 等待接收数据信号量
+        if (uart_buffer_wait_receive(UART_RECEIVE_TIMEOUT)) {
             // 读取数据和获取接收时间戳
             data_length = uart_buffer_read(data_buffer, UART_RX_BUFFER_SIZE, &rx_timestamp);
             
@@ -53,9 +53,6 @@ static void uart_process_task(void *argument)
                 uart_buffer_send_timestamp_response(rx_timestamp, process_timestamp, data_length);
             }
         }
-        
-        // 短暂延时，避免占用过多CPU
-        osDelay(1);
     }
 }
 
