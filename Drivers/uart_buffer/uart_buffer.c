@@ -3,27 +3,24 @@
 #include "cmsis_os2.h"
 #include <string.h>
 
-// 定义一个日志TAG
+// 定义日志TAG
 #define LOG_TAG "uart_buffer"
 #define LOG_LVL ELOG_LVL_DEBUG
 #include "util.h"
 
-// 串口接收缓冲区
+// 串口相关变量
 static UART_HandleTypeDef *g_huart;
-static uint8_t g_rx_buffer[UART_RX_BUFFER_SIZE];
-static volatile uint32_t g_rx_index = 0;
-static uint8_t g_rx_temp; // 用于单字节接收的临时变量
-static uint32_t g_rx_timestamp = 0; // 记录接收时间戳
+static uart_buffer_t g_rx_buffers[UART_BUFFER_COUNT];
+static volatile uint8_t g_current_buffer = 0;  // 当前接收缓冲区
+static volatile uint8_t g_process_buffer = 0;  // 当前处理缓冲区
 
-// 定义二值信号量句柄
+// 信号量句柄
 static osSemaphoreId_t rx_sem = NULL;
 
-// 初始化串口缓冲区
 void uart_buffer_init(UART_HandleTypeDef *huart)
 {
     g_huart = huart;
-    g_rx_index = 0;
-    memset(g_rx_buffer, 0, UART_RX_BUFFER_SIZE);
+    memset(g_rx_buffers, 0, sizeof(g_rx_buffers));
     
     // 创建二值信号量
     rx_sem = osSemaphoreNew(1, 0, NULL);
@@ -35,23 +32,34 @@ void uart_buffer_init(UART_HandleTypeDef *huart)
     // 初始化DWT计时器
     dwt_init();
     
-    log_i("UART buffer initialized with semaphore");
+    log_i("UART buffer initialized with double buffering");
 }
 
-// 启动串口接收
 void uart_buffer_start_receive(void)
 {
     if (g_huart != NULL) {
-        // 启动中断接收第一个字节
-        HAL_UART_Receive_IT(g_huart, &g_rx_temp, 1);
-        log_i("UART receive started");
+        // 开始接收，使用HAL_UARTEx_ReceiveToIdle_IT
+        if (HAL_UARTEx_ReceiveToIdle_IT(g_huart, 
+            g_rx_buffers[g_current_buffer].data, 
+            UART_RX_BUFFER_SIZE) != HAL_OK) {
+            log_e("Failed to start UART receive");
+        }
+        log_i("UART receive started with buffer %d", g_current_buffer);
     }
+}
+
+uart_buffer_t* uart_buffer_get_rxdata(uint32_t timeout)
+{
+    if (osSemaphoreAcquire(rx_sem, timeout) == osOK) {
+        return &g_rx_buffers[g_process_buffer];
+    }
+    return NULL;
 }
 
 // 获取接收缓冲区中可读数据长度
 uint32_t uart_buffer_available(void)
 {
-    return g_rx_index;
+    return g_rx_buffers[g_process_buffer].length;
 }
 
 // 读取缓冲区中的数据并获取接收时间戳
@@ -59,27 +67,22 @@ uint32_t uart_buffer_read(uint8_t *data, uint32_t length, uint32_t *rx_timestamp
 {
     uint32_t read_len = 0;
     
-    if (data == NULL || length == 0 || g_rx_index == 0)
+    if (data == NULL || length == 0 || g_rx_buffers[g_process_buffer].length == 0)
         return 0;
     
     // 计算实际可读取的长度
-    read_len = (length > g_rx_index) ? g_rx_index : length;
+    read_len = (length > g_rx_buffers[g_process_buffer].length) ? g_rx_buffers[g_process_buffer].length : length;
     
     // 复制数据
-    memcpy(data, g_rx_buffer, read_len);
+    memcpy(data, g_rx_buffers[g_process_buffer].data, read_len);
     
     // 如果提供了时间戳指针，则保存接收时间戳
     if (rx_timestamp != NULL) {
-        *rx_timestamp = g_rx_timestamp;
-    }
-    
-    // 如果未读完所有数据，则移动剩余数据到缓冲区起始位置
-    if (read_len < g_rx_index) {
-        memmove(g_rx_buffer, g_rx_buffer + read_len, g_rx_index - read_len);
+        *rx_timestamp = g_rx_buffers[g_process_buffer].timestamp;
     }
     
     // 更新索引
-    g_rx_index -= read_len;
+    g_rx_buffers[g_process_buffer].length -= read_len;
     
     return read_len;
 }
@@ -125,27 +128,28 @@ void uart_buffer_send_timestamp_response(uint32_t rx_timestamp, uint32_t process
 }
 
 // UART接收中断回调函数
-void uart_buffer_rx_callback(UART_HandleTypeDef *huart)
+void uart_buffer_rx_callback(UART_HandleTypeDef *huart, uint16_t Size)
 {
     if (huart != g_huart)
         return;
-    
-    // 当第一个字节被接收时记录时间戳
-    if (g_rx_index == 0) {
-        g_rx_timestamp = dwt_get_timestamp();
-    }
-    
-    if (g_rx_index < UART_RX_BUFFER_SIZE) {
-        g_rx_buffer[g_rx_index++] = g_rx_temp;
         
-        // 释放信号量通知任务
-        osSemaphoreRelease(rx_sem);
-    } else {
-        log_w("UART RX buffer overflow");
-    }
+    // 记录接收时间戳和长度
+    g_rx_buffers[g_current_buffer].timestamp = dwt_get_timestamp();
+    g_rx_buffers[g_current_buffer].length = Size;
     
-    // 继续接收下一个字节
-    HAL_UART_Receive_IT(g_huart, &g_rx_temp, 1);
+    // 切换处理缓冲区
+    g_process_buffer = g_current_buffer;
+    
+    // 切换到另一个缓冲区继续接收
+    g_current_buffer = (g_current_buffer + 1) % UART_BUFFER_COUNT;
+    
+    // 释放信号量通知处理任务
+    osSemaphoreRelease(rx_sem);
+    
+    // 启动下一次接收
+    HAL_UARTEx_ReceiveToIdle_IT(huart, 
+        g_rx_buffers[g_current_buffer].data, 
+        UART_RX_BUFFER_SIZE);
 }
 
 uint8_t uart_buffer_wait_receive(uint32_t timeout)
@@ -153,10 +157,19 @@ uint8_t uart_buffer_wait_receive(uint32_t timeout)
     // 等待信号量
     return (osSemaphoreAcquire(rx_sem, timeout) == osOK) ? 1 : 0;
 }
-
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-  /* USER CODE BEGIN HAL_UART_RxCpltCallback */
-  uart_buffer_rx_callback(huart);
-  /* USER CODE END HAL_UART_RxCpltCallback */
-}
+/**
+  * @brief  Reception Event Callback (Rx event notification called after use of advanced reception service).
+  * @param  huart UART handle
+  * @param  Size  Number of data available in application reception buffer (indicates a position in
+  *               reception buffer until which, data are available)
+  * @retval None
+  */
+ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+ {
+   /* Prevent unused argument(s) compilation warning */
+ 
+   /* NOTE : This function should not be modified, when the callback is needed,
+             the HAL_UARTEx_RxEventCallback can be implemented in the user file.
+    */
+   uart_buffer_rx_callback(huart, Size);
+ }

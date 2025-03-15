@@ -26,9 +26,7 @@ static osStaticThreadDef_t uart_process_task_control_block;
 // UART处理任务
 static void uart_process_task(void *argument)
 {
-    uint8_t data_buffer[UART_RX_BUFFER_SIZE];
-    uint32_t data_length;
-    uint32_t rx_timestamp;
+    uart_buffer_t *rx_buffer;
     uint32_t process_timestamp;
     
     log_i("UART process task started");
@@ -37,21 +35,20 @@ static void uart_process_task(void *argument)
     
     for(;;)
     {
-        // 等待接收数据信号量
-        if (uart_buffer_wait_receive(UART_RECEIVE_TIMEOUT)) {
-            // 读取数据和获取接收时间戳
-            data_length = uart_buffer_read(data_buffer, UART_RX_BUFFER_SIZE, &rx_timestamp);
+        // 等待接收缓冲区数据
+        rx_buffer = uart_buffer_get_rxdata(UART_RECEIVE_TIMEOUT);
+        if (rx_buffer != NULL && rx_buffer->length > 0) {
+            // 记录处理时间戳
+            process_timestamp = dwt_get_timestamp();
             
-            if (data_length > 0) {
-                // 记录处理时间戳
-                process_timestamp = dwt_get_timestamp();
-                
-                log_d("Received %lu bytes, rx_ts=%lu, proc_ts=%lu", 
-                      data_length, rx_timestamp, process_timestamp);
-                
-                // 发送包含时间戳和数据长度的响应
-                uart_buffer_send_timestamp_response(rx_timestamp, process_timestamp, data_length);
-            }
+            log_d("Received %lu bytes, rx_ts=%lu, proc_ts=%lu", 
+                  rx_buffer->length, rx_buffer->timestamp, process_timestamp);
+            
+            // 发送响应
+            uart_buffer_send_timestamp_response(
+                rx_buffer->timestamp, 
+                process_timestamp, 
+                rx_buffer->length);
         }
     }
 }
