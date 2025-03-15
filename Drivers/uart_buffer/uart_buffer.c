@@ -1,4 +1,5 @@
 #include "uart_buffer.h"
+#include "dwt.h"
 #include <string.h>
 
 // 定义一个日志TAG
@@ -11,6 +12,7 @@ static UART_HandleTypeDef *g_huart;
 static uint8_t g_rx_buffer[UART_RX_BUFFER_SIZE];
 static volatile uint32_t g_rx_index = 0;
 static uint8_t g_rx_temp; // 用于单字节接收的临时变量
+static uint32_t g_rx_timestamp = 0; // 记录接收时间戳
 
 // 初始化串口缓冲区
 void uart_buffer_init(UART_HandleTypeDef *huart)
@@ -19,7 +21,10 @@ void uart_buffer_init(UART_HandleTypeDef *huart)
     g_rx_index = 0;
     memset(g_rx_buffer, 0, UART_RX_BUFFER_SIZE);
     
-    log_i("UART buffer initialized");
+    // 初始化DWT计时器
+    dwt_init();
+    
+    log_i("UART buffer initialized with DWT timestamp support");
 }
 
 // 启动串口接收
@@ -38,8 +43,8 @@ uint32_t uart_buffer_available(void)
     return g_rx_index;
 }
 
-// 读取缓冲区中的数据
-uint32_t uart_buffer_read(uint8_t *data, uint32_t length)
+// 读取缓冲区中的数据并获取接收时间戳
+uint32_t uart_buffer_read(uint8_t *data, uint32_t length, uint32_t *rx_timestamp)
 {
     uint32_t read_len = 0;
     
@@ -51,6 +56,11 @@ uint32_t uart_buffer_read(uint8_t *data, uint32_t length)
     
     // 复制数据
     memcpy(data, g_rx_buffer, read_len);
+    
+    // 如果提供了时间戳指针，则保存接收时间戳
+    if (rx_timestamp != NULL) {
+        *rx_timestamp = g_rx_timestamp;
+    }
     
     // 如果未读完所有数据，则移动剩余数据到缓冲区起始位置
     if (read_len < g_rx_index) {
@@ -77,11 +87,42 @@ uint32_t uart_buffer_send(uint8_t *data, uint32_t length)
         return 0;
 }
 
+// 发送时间戳和数据长度信息
+void uart_buffer_send_timestamp_response(uint32_t rx_timestamp, uint32_t process_timestamp, uint32_t data_length)
+{
+    // 创建响应数据包
+    typedef struct {
+        uint32_t rx_ts;      // 接收时间戳
+        uint32_t proc_ts;    // 处理时间戳
+        uint32_t delta_us;   // 时间差（微秒）
+        uint32_t data_len;   // 数据长度
+    } timestamp_response_t;
+    
+    timestamp_response_t response;
+    response.rx_ts = rx_timestamp;
+    response.proc_ts = process_timestamp;
+    
+    // 计算时间差并转换为微秒 (168MHz = 168 ticks per us)
+    uint32_t delta_ticks = process_timestamp - rx_timestamp;
+    response.delta_us = delta_ticks / 168;
+    response.data_len = data_length;
+    
+    // 发送响应
+    uart_buffer_send((uint8_t*)&response, sizeof(timestamp_response_t));
+    log_d("Sent timestamp response: rx=%u, proc=%u, delta=%u us, len=%u", 
+           rx_timestamp, process_timestamp, response.delta_us, data_length);
+}
+
 // UART接收中断回调函数
 void uart_buffer_rx_callback(UART_HandleTypeDef *huart)
 {
     if (huart != g_huart)
         return;
+    
+    // 当第一个字节被接收时记录时间戳
+    if (g_rx_index == 0) {
+        g_rx_timestamp = dwt_get_timestamp();
+    }
     
     // 检查接收缓冲区是否已满
     if (g_rx_index < UART_RX_BUFFER_SIZE) {

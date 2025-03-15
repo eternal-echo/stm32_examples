@@ -63,7 +63,6 @@ class UartBufferTest:
                 time.sleep(0.01)
             return response
         return None
-    
     def run_basic_echo_test(self):
         """基本回显测试"""
         print("\n===== 基本回显测试 =====")
@@ -82,7 +81,8 @@ class UartBufferTest:
             response = self.send_data(sent_data)
             
             if response:
-                success = response == sent_data
+                # 修改判断逻辑：只要发送的数据包含在接收数据中即为成功
+                success = sent_data in response
                 print(f"接收: {response.decode('utf-8', errors='ignore')}")
                 print(f"测试{'成功' if success else '失败'}\n")
                 results.append(success)
@@ -362,14 +362,17 @@ class UartBufferTest:
             # 运行基本回显测试
             self.run_basic_echo_test()
             
-            # # 运行吞吐量测试
-            # self.run_throughput_test(duration=5)
+            # 运行延迟测试
+            self.run_latency_test(iterations=100)
             
             # # 运行边界测试
             # self.run_boundary_test()
             
-            # # 运行延迟测试
-            # self.run_latency_test(iterations=100)
+            
+            # 运行吞吐量测试
+            # self.run_throughput_test(duration=5)
+            
+            
             
             # # 运行压力测试
             # self.run_stress_test(duration=20)

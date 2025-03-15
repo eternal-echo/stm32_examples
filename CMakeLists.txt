@@ -51,6 +51,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
     # Drivers
     Drivers/uart_buffer/uart_buffer.c
+    Drivers/dwt/dwt.c
+
+    # Core
+    Core/Src/uart_process_task.c
 
     # Middlewares
     
@@ -67,8 +71,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    
     # Drivers
     Drivers/uart_buffer
+    Drivers/dwt
 
     # Middlewares
     

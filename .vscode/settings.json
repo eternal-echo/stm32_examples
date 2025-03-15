@@ -1,8 +1,10 @@
 {
-    "cortex-debug.armToolchainPath": "C:/Users/yuany/scoop/apps/gcc-arm-none-eabi/current/bin",
+    "cortex-debug.armToolchainPath": "C:\\Users\\yuany\\scoop\\apps\\gcc-arm-none-eabi\\current\\bin",
     "files.associations": {
         "*.ino": "cpp",
         "*.map": "mapfile",
-        "cstdint": "c"
+        "cstdint": "c",
+        "main.h": "c",
+        "usart.h": "c"
     }
 }

@@ -29,15 +29,12 @@
 #define LOG_TAG "freertos"
 #define LOG_LVL ELOG_LVL_VERBOSE
 #include "util.h"
-
-#include "usart.h"
-#include "uart_buffer.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE BEGIN PTD */
-
+#include "uart_process_task.h"
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -90,15 +87,15 @@ void vApplicationDaemonTaskStartupHook(void);
 __weak void configureTimerForRunTimeStats(void)
 {
 #ifdef APP_THREAD_INFO
-    // 坯用DWT外设
+    // ??DWT??
     if (!(CoreDebug->DEMCR & CoreDebug_DEMCR_TRCENA_Msk)) {
         CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
     }
 
-    // 坯用DWT计数�?
+    // ??DWT????
     DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 
-    // 針置计数�?
+    // ??????
     DWT->CYCCNT = 0;
 #endif
 }
@@ -106,7 +103,7 @@ __weak void configureTimerForRunTimeStats(void)
 __weak unsigned long getRunTimeCounterValue(void)
 {
 #ifdef APP_THREAD_INFO
-    // 返回DWT计数器的当剝�?
+    // ??DWT????????
     return DWT->CYCCNT;
 #else
     return 0;
@@ -246,35 +243,15 @@ void MX_FREERTOS_Init(void) {
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
-#ifdef APP_THREAD_INFO
   static char task_info[256];
-#endif
-  uint8_t rx_data[64];
-  uint32_t rx_len;
   /* Infinite loop */
   (void) argument;
   // debug log, turn on log level: ELOG_LEVEL_DEBUG at main.c
-  uart_buffer_init(&huart1); // ????UART1?????????
-  uart_buffer_start_receive();
-  log_i("UART buffer demo started");
+  log_d("Hello, EasyLogger!");
+  // log_d("PI: %f", 3.1415926);
+  uart_process_task_start();
   for(;;)
   {
-    // ?????????
-    if (uart_buffer_available() > 0)
-    {
-      // ????
-      rx_len = uart_buffer_read(rx_data, sizeof(rx_data) - 1);
-      
-      if (rx_len > 0)
-      {
-        // ????????
-        rx_data[rx_len] = '\0'; // ??????????
-        log_i("UART RX: %s", rx_data);
-        
-        // ????????
-        // uart_buffer_send(rx_data, rx_len);
-      }
-    }
 #ifdef APP_THREAD_INFO
     // print the information of tasks
     memset(task_info, 0, sizeof(task_info));
@@ -285,7 +262,7 @@ void StartDefaultTask(void *argument)
     vTaskGetRunTimeStats(task_info);
     log_v("Task Run Time Info: \n%s\n%s", "Task\t\tRun Time Counter\tPercentage", task_info);    
 #endif
-    osDelay(100);
+    osDelay(10000);
   }
   /* USER CODE END StartDefaultTask */
 }
